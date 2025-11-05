@@ -95,7 +95,6 @@ export default function Store() {
                     previewImage={template.image}
                     techStack={template.technologies}
                     price={template.price}
-                    category={template.category}
                     onView={() => console.log(`View ${template.title}`)}
                     onDownload={() => console.log(`Download ${template.title}`)}
                   />

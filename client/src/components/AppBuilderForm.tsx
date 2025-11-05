@@ -25,20 +25,16 @@ export default function AppBuilderForm() {
 
   const aiSuggestionMutation = useMutation({
     mutationFn: async ({ endpoint, data }: { endpoint: string; data?: Record<string, string> }) => {
-      const response = await apiRequest(`/api/ai/suggestions/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: data ? JSON.stringify(data) : undefined
-      });
-      return response.suggestions;
+      const response = await apiRequest('POST', `/api/ai/suggestions/${endpoint}`, data);
+      return await response.json();
     },
-    onSuccess: (suggestions, variables) => {
+    onSuccess: (data, variables) => {
       setAiModal({
         isOpen: true,
         title: variables.endpoint === 'app-type' ? 'AI Suggestions for App Type' :
                variables.endpoint === 'features' ? 'AI Feature Suggestions' :
                'Help Define Your Audience',
-        content: suggestions,
+        content: data.suggestions,
         isLoading: false
       });
     },
@@ -54,14 +50,11 @@ export default function AppBuilderForm() {
 
   const submitProjectMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      return await apiRequest('/api/app-projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
+      const response = await apiRequest('POST', '/api/app-projects', data);
+      return await response.json();
     },
-    onSuccess: (project) => {
-      setGeneratedPlan(project.aiPlan);
+    onSuccess: (data) => {
+      setGeneratedPlan(data.aiPlan);
       toast({
         title: "Success!",
         description: "Your app development plan has been generated.",
