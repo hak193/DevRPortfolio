@@ -4,6 +4,7 @@ import { useLocation } from 'wouter';
 import Navigation from '@/components/Navigation';
 import TemplateCard from '@/components/TemplateCard';
 import CheckoutModal from '@/components/CheckoutModal';
+import TemplatePreviewModal from '@/components/TemplatePreviewModal';
 import Footer from '@/components/Footer';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +23,7 @@ export default function Store() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
 
   const { data: templates = [], isLoading: templatesLoading } = useQuery<Template[]>({
     queryKey: ['/api/templates'],
@@ -191,10 +193,7 @@ export default function Store() {
                         previewImage={template.image}
                         techStack={template.technologies}
                         price={template.price}
-                        onView={() => {
-                          // Could navigate to a template details page
-                          console.log(`View ${template.title}`);
-                        }}
+                        onView={() => setPreviewTemplate(template)}
                         onDownload={() => {
                           if (isPurchased) {
                             handleDownload(template);
@@ -250,6 +249,15 @@ export default function Store() {
         }}
         template={selectedTemplate}
         onSuccess={handlePurchaseSuccess}
+      />
+      
+      <TemplatePreviewModal
+        isOpen={!!previewTemplate}
+        onClose={() => setPreviewTemplate(null)}
+        template={previewTemplate}
+        isPurchased={previewTemplate ? purchasedTemplateIds.has(previewTemplate.id) : false}
+        onPurchase={handlePurchase}
+        onDownload={handleDownload}
       />
       
       <Footer />
