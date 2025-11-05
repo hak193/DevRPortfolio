@@ -1,9 +1,12 @@
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { Sparkles, ArrowRight, CheckCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 import AIModal from './AIModal';
 
 export default function AppBuilderForm() {
@@ -17,6 +20,61 @@ export default function AppBuilderForm() {
   
   const [aiModal, setAiModal] = useState({ isOpen: false, title: '', content: '', isLoading: false });
   const [step, setStep] = useState(1);
+  const [generatedPlan, setGeneratedPlan] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const aiSuggestionMutation = useMutation({
+    mutationFn: async ({ endpoint, data }: { endpoint: string; data?: Record<string, string> }) => {
+      const response = await apiRequest(`/api/ai/suggestions/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: data ? JSON.stringify(data) : undefined
+      });
+      return response.suggestions;
+    },
+    onSuccess: (suggestions, variables) => {
+      setAiModal({
+        isOpen: true,
+        title: variables.endpoint === 'app-type' ? 'AI Suggestions for App Type' :
+               variables.endpoint === 'features' ? 'AI Feature Suggestions' :
+               'Help Define Your Audience',
+        content: suggestions,
+        isLoading: false
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to get AI suggestions. Please try again.",
+        variant: "destructive"
+      });
+      setAiModal({ ...aiModal, isOpen: false });
+    }
+  });
+
+  const submitProjectMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return await apiRequest('/api/app-projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    },
+    onSuccess: (project) => {
+      setGeneratedPlan(project.aiPlan);
+      toast({
+        title: "Success!",
+        description: "Your app development plan has been generated.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to generate app plan. Please try again.",
+        variant: "destructive"
+      });
+    }
+  });
 
   const handleAIHelp = (field: string) => {
     setAiModal({
@@ -26,25 +84,24 @@ export default function AppBuilderForm() {
       isLoading: true
     });
 
-    setTimeout(() => {
-      const suggestions: Record<string, string> = {
-        'App Type': 'Consider these popular app types:\n\n• Web Application - Best for business tools, dashboards, and SaaS products\n• Mobile App - Ideal for on-the-go access and native features\n• E-Commerce Platform - Perfect for online stores and marketplaces\n• Social Platform - Great for community building and user engagement',
-        'Features': 'Based on modern applications, consider:\n\n• User Authentication & Profiles\n• Real-time Notifications\n• Search & Filtering\n• Data Analytics Dashboard\n• Payment Integration\n• File Upload & Management\n• Mobile Responsiveness',
-        'Target Audience': 'Define your audience:\n\n• Demographics: Age, location, profession\n• Tech Savviness: Beginner, intermediate, expert\n• Use Case: Business, personal, education\n• Device Preference: Desktop, mobile, both\n\nExample: "Small business owners aged 30-50 who need simple inventory management on both desktop and mobile."'
-      };
-
-      setAiModal({
-        isOpen: true,
-        title: `AI Suggestions for ${field}`,
-        content: suggestions[field] || 'AI suggestions will help you refine your requirements.',
-        isLoading: false
+    if (field === 'App Type') {
+      aiSuggestionMutation.mutate({ endpoint: 'app-type' });
+    } else if (field === 'Features') {
+      aiSuggestionMutation.mutate({ 
+        endpoint: 'features',
+        data: { appType: formData.appType, description: formData.description }
       });
-    }, 1500);
+    } else if (field === 'Target Audience') {
+      aiSuggestionMutation.mutate({ 
+        endpoint: 'target-audience',
+        data: { appType: formData.appType, description: formData.description }
+      });
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Form submitted:', formData);
+    submitProjectMutation.mutate(formData);
   };
 
   return (
@@ -194,13 +251,32 @@ export default function AppBuilderForm() {
                 <Button type="button" variant="outline" onClick={() => setStep(2)} className="flex-1" data-testid="button-back-step-2">
                   Back
                 </Button>
-                <Button type="submit" className="flex-1" data-testid="button-submit-app">
-                  Generate App Plan
+                <Button 
+                  type="submit" 
+                  className="flex-1" 
+                  disabled={submitProjectMutation.isPending}
+                  data-testid="button-submit-app"
+                >
+                  {submitProjectMutation.isPending ? 'Generating...' : 'Generate App Plan'}
                 </Button>
               </div>
             </div>
           )}
         </form>
+
+        {generatedPlan && (
+          <div className="mt-8 bg-card rounded-xl p-8 border border-border">
+            <div className="flex items-center gap-3 mb-6">
+              <CheckCircle className="h-6 w-6 text-green-500" />
+              <h3 className="text-2xl font-bold">Your Development Plan is Ready!</h3>
+            </div>
+            <div className="prose prose-invert max-w-none">
+              <div className="text-base leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                {generatedPlan}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="lg:col-span-1">
