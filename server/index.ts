@@ -1,4 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -9,6 +12,34 @@ declare module 'http' {
     rawBody: unknown
   }
 }
+
+// Configure session store
+const PgSession = connectPgSimple(session);
+const sessionStore = new PgSession({
+  conString: process.env.DATABASE_URL!,
+  tableName: "session",
+  createTableIfMissing: true,
+});
+
+// Session configuration
+app.use(session({
+  store: sessionStore,
+  secret: process.env.SESSION_SECRET || "dev-secret-change-in-production",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    sameSite: "lax",
+  },
+}));
+
+// Initialize passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Body parsers
 app.use(express.json({
   verify: (req, _res, buf) => {
     req.rawBody = buf;
@@ -16,6 +47,7 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false }));
 
+// Logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;

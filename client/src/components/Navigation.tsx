@@ -1,11 +1,21 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, User, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/auth';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const { user, logout } = useAuth();
 
   const navLinks = [
     { href: '/', label: 'Home' },
@@ -15,6 +25,11 @@ export default function Navigation() {
     { href: '/about', label: 'About' },
     { href: '/contact', label: 'Contact' },
   ];
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/");
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
@@ -45,10 +60,48 @@ export default function Navigation() {
             ))}
           </div>
 
-          <div className="hidden md:block">
-            <Button size="default" data-testid="button-get-started">
-              Get Started
-            </Button>
+          <div className="hidden md:flex items-center gap-3">
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="default" data-testid="button-user-menu">
+                    <User className="mr-2 h-4 w-4" />
+                    {user.username}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/account" data-testid="link-account">
+                      <User className="mr-2 h-4 w-4" />
+                      Account
+                    </Link>
+                  </DropdownMenuItem>
+                  {!user.emailVerified && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/verify-email" data-testid="link-verify">
+                        Verify Email
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} data-testid="button-logout">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="flex gap-3">
+                <Button variant="outline" size="default" asChild data-testid="button-login">
+                  <Link href="/login">Login</Link>
+                </Button>
+                <Button size="default" asChild data-testid="button-get-started">
+                  <Link href="/register">Get Started</Link>
+                </Button>
+              </div>
+            )}
           </div>
 
           <button
@@ -78,10 +131,35 @@ export default function Navigation() {
                 {link.label}
               </Link>
             ))}
-            <div className="pt-2">
-              <Button size="default" className="w-full" data-testid="button-mobile-get-started">
-                Get Started
-              </Button>
+            <div className="pt-2 space-y-2">
+              {user ? (
+                <>
+                  <Link href="/account" className="block">
+                    <Button variant="outline" className="w-full" data-testid="button-mobile-account">
+                      <User className="mr-2 h-4 w-4" />
+                      {user.username}
+                    </Button>
+                  </Link>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={handleLogout}
+                    data-testid="button-mobile-logout"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" className="w-full" asChild data-testid="button-mobile-login">
+                    <Link href="/login">Login</Link>
+                  </Button>
+                  <Button className="w-full" asChild data-testid="button-mobile-get-started">
+                    <Link href="/register">Get Started</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}

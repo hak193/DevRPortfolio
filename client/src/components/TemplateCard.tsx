@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Download, Eye } from 'lucide-react';
+import { ReactNode } from 'react';
 
 interface TemplateCardProps {
   title: string;
@@ -11,6 +12,7 @@ interface TemplateCardProps {
   price: number | 'free';
   onView: () => void;
   onDownload: () => void;
+  customAction?: ReactNode;
 }
 
 export default function TemplateCard({
@@ -20,13 +22,24 @@ export default function TemplateCard({
   techStack,
   price,
   onView,
-  onDownload
+  onDownload,
+  customAction
 }: TemplateCardProps) {
+  // Handle image source - convert @assets path to proper import
+  const getImageSrc = (src: string) => {
+    if (src.startsWith('@assets/')) {
+      // In production, these would be properly imported
+      // For now, use a placeholder
+      return `/api/placeholder/400/300`;
+    }
+    return src;
+  };
+
   return (
     <Card className="overflow-hidden rounded-xl shadow-2xl hover:-translate-y-2 transition-all duration-300 flex flex-col" data-testid={`card-template-${title.toLowerCase().replace(/\s+/g, '-')}`}>
       <div className="relative aspect-video overflow-hidden group">
         <img 
-          src={previewImage} 
+          src={getImageSrc(previewImage)} 
           alt={title}
           className="w-full h-full object-cover"
         />
@@ -70,10 +83,12 @@ export default function TemplateCard({
           <span className="text-2xl font-bold" data-testid={`text-template-price-${title.toLowerCase().replace(/\s+/g, '-')}`}>
             {price === 'free' ? 'Free' : `$${price}`}
           </span>
-          <Button onClick={onDownload} data-testid={`button-template-download-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-            <Download className="mr-2 h-4 w-4" />
-            {price === 'free' ? 'Download' : 'Purchase'}
-          </Button>
+          {customAction || (
+            <Button onClick={onDownload} data-testid={`button-template-download-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+              <Download className="mr-2 h-4 w-4" />
+              {price === 'free' ? 'Download' : 'Purchase'}
+            </Button>
+          )}
         </div>
       </div>
     </Card>

@@ -1,10 +1,12 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 import { createServer, type Server } from "http";
+import Stripe from "stripe";
 import { storage } from "./storage";
 import { 
   insertTemplateSchema, 
   insertAppProjectSchema,
-  insertContactSubmissionSchema 
+  insertContactSubmissionSchema,
+  insertUserSchema
 } from "@shared/schema";
 import { 
   getAppTypeSuggestions, 
@@ -12,8 +14,165 @@ import {
   getTargetAudienceSuggestions,
   generateAppPlan 
 } from "./gemini";
+import passport, { ensureAuthenticated, ensureEmailVerified, generateOTP, getOTPExpiry } from "./auth";
+import type { SafeUser } from "@shared/schema";
+
+// Initialize Stripe
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
+}
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: "2024-12-18.acacia",
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Seed templates on startup
+  await storage.seedTemplatesIfEmpty();
+
+  // ========== Authentication Routes ==========
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const validatedData = insertUserSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingEmail = await storage.getUserByEmail(validatedData.email);
+      if (existingEmail) {
+        return res.status(400).json({ error: "Email already registered" });
+      }
+      
+      const existingUsername = await storage.getUserByUsername(validatedData.username);
+      if (existingUsername) {
+        return res.status(400).json({ error: "Username already taken" });
+      }
+      
+      // Create user
+      const user = await storage.createUser(validatedData);
+      
+      // Generate and save OTP
+      const otp = generateOTP();
+      await storage.updateUserOtp(user.id, otp, getOTPExpiry());
+      
+      // Mock sending email (in production, use an email service)
+      console.log(`[EMAIL] Verification OTP for ${user.email}: ${otp}`);
+      
+      // Auto-login after registration
+      req.login(user, (err) => {
+        if (err) {
+          console.error("Login error after registration:", err);
+          return res.status(500).json({ error: "Registration successful but login failed" });
+        }
+        res.status(201).json({ user, message: "Registration successful. Check console for OTP (in production, check email)." });
+      });
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      if (error.errors) {
+        return res.status(400).json({ error: error.errors[0]?.message || "Invalid data" });
+      }
+      res.status(400).json({ error: "Registration failed" });
+    }
+  });
+
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: SafeUser | false, info: any) => {
+      if (err) {
+        console.error("Login error:", err);
+        return res.status(500).json({ error: "Login failed" });
+      }
+      if (!user) {
+        return res.status(401).json({ error: info?.message || "Invalid credentials" });
+      }
+      req.login(user, (loginErr) => {
+        if (loginErr) {
+          console.error("Session login error:", loginErr);
+          return res.status(500).json({ error: "Login failed" });
+        }
+        res.json({ user, message: "Login successful" });
+      });
+    })(req, res, next);
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.json({ message: "Logout successful" });
+    });
+  });
+
+  app.get("/api/auth/me", ensureAuthenticated, (req, res) => {
+    res.json({ user: req.user });
+  });
+
+  app.post("/api/auth/send-otp", ensureAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as SafeUser;
+      
+      if (user.emailVerified) {
+        return res.status(400).json({ error: "Email already verified" });
+      }
+      
+      // Generate new OTP
+      const otp = generateOTP();
+      await storage.updateUserOtp(user.id, otp, getOTPExpiry());
+      
+      // Mock sending email
+      console.log(`[EMAIL] New verification OTP for ${user.email}: ${otp}`);
+      
+      res.json({ message: "OTP sent. Check console for OTP (in production, check email)." });
+    } catch (error) {
+      console.error("Send OTP error:", error);
+      res.status(500).json({ error: "Failed to send OTP" });
+    }
+  });
+
+  app.post("/api/auth/verify-otp", ensureAuthenticated, async (req, res) => {
+    try {
+      const { otp } = req.body;
+      const user = req.user as SafeUser;
+      
+      if (!otp) {
+        return res.status(400).json({ error: "OTP required" });
+      }
+      
+      if (user.emailVerified) {
+        return res.status(400).json({ error: "Email already verified" });
+      }
+      
+      // Get full user with OTP data
+      const fullUser = await storage.getUserByEmail(user.email);
+      if (!fullUser || !fullUser.otpSecret) {
+        return res.status(400).json({ error: "No OTP found. Please request a new one." });
+      }
+      
+      // Check expiry
+      if (fullUser.otpExpiry && new Date() > fullUser.otpExpiry) {
+        return res.status(400).json({ error: "OTP expired. Please request a new one." });
+      }
+      
+      // Verify OTP
+      if (fullUser.otpSecret !== otp) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+      
+      // Mark email as verified
+      await storage.verifyUserEmail(user.id);
+      
+      // Update session user
+      const updatedUser = await storage.getUserById(user.id);
+      req.login(updatedUser!, (err) => {
+        if (err) console.error("Session update error:", err);
+      });
+      
+      res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      console.error("Verify OTP error:", error);
+      res.status(500).json({ error: "Failed to verify OTP" });
+    }
+  });
+
+  // ========== Template Routes ==========
   app.get("/api/templates", async (_req, res) => {
     try {
       const templates = await storage.getTemplates();
@@ -37,7 +196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/templates", async (req, res) => {
+  app.post("/api/templates", ensureAuthenticated, async (req, res) => {
     try {
       const validatedData = insertTemplateSchema.parse(req.body);
       const template = await storage.createTemplate(validatedData);
@@ -48,6 +207,167 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== Payment Routes ==========
+  app.post("/api/payments/create-intent", ensureAuthenticated, ensureEmailVerified, async (req, res) => {
+    try {
+      const { templateId } = req.body;
+      const user = req.user as SafeUser;
+      
+      if (!templateId) {
+        return res.status(400).json({ error: "Template ID required" });
+      }
+      
+      // Check if already purchased
+      const hasPurchased = await storage.hasUserPurchasedTemplate(user.id, templateId);
+      if (hasPurchased) {
+        return res.status(400).json({ error: "Template already purchased" });
+      }
+      
+      // Get template details
+      const template = await storage.getTemplate(templateId);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      // Create payment intent
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: template.price * 100, // Convert to cents
+        currency: "usd",
+        metadata: {
+          userId: user.id,
+          templateId: template.id,
+        },
+      });
+      
+      // Store payment record
+      await storage.createPayment({
+        userId: user.id,
+        templateId: template.id,
+        stripePaymentIntentId: paymentIntent.id,
+        amount: template.price,
+        status: "pending",
+      });
+      
+      res.json({ clientSecret: paymentIntent.client_secret });
+    } catch (error: any) {
+      console.error("Payment intent error:", error);
+      res.status(500).json({ error: error.message || "Failed to create payment intent" });
+    }
+  });
+
+  // Webhook endpoint for Stripe payment confirmation
+  app.post("/api/payments/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    
+    if (!sig || !endpointSecret) {
+      // In development without webhook secret, handle manual confirmation
+      if (process.env.NODE_ENV === "development") {
+        try {
+          const { paymentIntentId } = JSON.parse(req.body.toString());
+          
+          const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+          
+          if (paymentIntent.status === "succeeded") {
+            const payment = await storage.getPaymentByIntentId(paymentIntentId);
+            
+            if (payment && payment.status !== "succeeded") {
+              await storage.updatePaymentStatus(payment.id, "succeeded");
+              await storage.createUserPurchase({
+                userId: payment.userId,
+                templateId: payment.templateId,
+                paymentId: payment.id,
+              });
+            }
+          }
+          
+          return res.json({ received: true });
+        } catch (error) {
+          console.error("Manual webhook processing error:", error);
+          return res.status(400).json({ error: "Invalid request" });
+        }
+      }
+      return res.status(400).json({ error: "Missing stripe signature" });
+    }
+    
+    try {
+      const event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+      
+      if (event.type === "payment_intent.succeeded") {
+        const paymentIntent = event.data.object as any;
+        
+        // Update payment status
+        const payment = await storage.getPaymentByIntentId(paymentIntent.id);
+        if (payment) {
+          await storage.updatePaymentStatus(payment.id, "succeeded");
+          
+          // Create user purchase
+          await storage.createUserPurchase({
+            userId: payment.userId,
+            templateId: payment.templateId,
+            paymentId: payment.id,
+          });
+        }
+      }
+      
+      res.json({ received: true });
+    } catch (error) {
+      console.error("Webhook error:", error);
+      res.status(400).json({ error: "Webhook processing failed" });
+    }
+  });
+
+  // ========== Download Routes ==========
+  app.get("/api/downloads/:templateId", ensureAuthenticated, async (req, res) => {
+    try {
+      const { templateId } = req.params;
+      const user = req.user as SafeUser;
+      
+      // Check if user has purchased
+      const hasPurchased = await storage.hasUserPurchasedTemplate(user.id, templateId);
+      if (!hasPurchased) {
+        return res.status(403).json({ error: "Template not purchased" });
+      }
+      
+      // Get template
+      const template = await storage.getTemplate(templateId);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      // Increment download count
+      await storage.incrementDownloadCount(user.id, templateId);
+      
+      // Return download URL (in production, generate a secure, time-limited URL)
+      res.json({ downloadUrl: template.downloadUrl });
+    } catch (error) {
+      console.error("Download error:", error);
+      res.status(500).json({ error: "Download failed" });
+    }
+  });
+
+  // ========== User Account Routes ==========
+  app.get("/api/user/purchases", ensureAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as SafeUser;
+      const purchases = await storage.getUserPurchases(user.id);
+      
+      // Get template details for each purchase
+      const purchasesWithTemplates = await Promise.all(
+        purchases.map(async (purchase) => {
+          const template = await storage.getTemplate(purchase.templateId);
+          return { ...purchase, template };
+        })
+      );
+      
+      res.json(purchasesWithTemplates);
+    } catch (error) {
+      console.error("Fetch purchases error:", error);
+      res.status(500).json({ error: "Failed to fetch purchases" });
+    }
+  });
+
+  // ========== Existing Routes (App Projects, Contact, AI) ==========
   app.post("/api/app-projects", async (req, res) => {
     try {
       const validatedData = insertAppProjectSchema.parse(req.body);
@@ -127,6 +447,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
-
+  
   return httpServer;
 }

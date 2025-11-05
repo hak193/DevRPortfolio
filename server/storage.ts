@@ -1,161 +1,321 @@
-import { 
-  type Template, 
+import { drizzle } from "drizzle-orm/neon-http";
+import { neon } from "@neondatabase/serverless";
+import { eq, and, desc } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import {
+  users,
+  templates,
+  payments,
+  userPurchases,
+  appProjects,
+  contactSubmissions,
+  type User,
+  type InsertUser,
+  type SafeUser,
+  type Template,
   type InsertTemplate,
+  type Payment,
+  type InsertPayment,
+  type UserPurchase,
+  type InsertUserPurchase,
   type AppProject,
   type InsertAppProject,
   type ContactSubmission,
-  type InsertContactSubmission
+  type InsertContactSubmission,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
 
 export interface IStorage {
+  // User methods
+  createUser(data: InsertUser & { password: string }): Promise<SafeUser>;
+  getUserById(id: string): Promise<SafeUser | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  updateUserOtp(userId: string, otpSecret: string | null, otpExpiry: Date | null): Promise<void>;
+  verifyUserEmail(userId: string): Promise<void>;
+  validateUserPassword(email: string, password: string): Promise<SafeUser | null>;
+
+  // Template methods
   getTemplates(): Promise<Template[]>;
   getTemplate(id: string): Promise<Template | undefined>;
   createTemplate(template: InsertTemplate): Promise<Template>;
-  
+  seedTemplatesIfEmpty(): Promise<void>;
+
+  // Payment methods
+  createPayment(payment: InsertPayment): Promise<Payment>;
+  getPaymentByIntentId(intentId: string): Promise<Payment | undefined>;
+  updatePaymentStatus(id: string, status: string): Promise<Payment | undefined>;
+  getUserPayments(userId: string): Promise<Payment[]>;
+
+  // User purchase methods
+  createUserPurchase(purchase: InsertUserPurchase): Promise<UserPurchase>;
+  getUserPurchases(userId: string): Promise<UserPurchase[]>;
+  hasUserPurchasedTemplate(userId: string, templateId: string): Promise<boolean>;
+  incrementDownloadCount(userId: string, templateId: string): Promise<void>;
+
+  // Existing methods
   getAppProjects(): Promise<AppProject[]>;
   getAppProject(id: string): Promise<AppProject | undefined>;
   createAppProject(project: InsertAppProject): Promise<AppProject>;
   updateAppProject(id: string, updates: Partial<AppProject>): Promise<AppProject | undefined>;
-  
   getContactSubmissions(): Promise<ContactSubmission[]>;
   createContactSubmission(submission: InsertContactSubmission): Promise<ContactSubmission>;
 }
 
-export class MemStorage implements IStorage {
-  private templates: Map<string, Template>;
-  private appProjects: Map<string, AppProject>;
-  private contactSubmissions: Map<string, ContactSubmission>;
+export class DrizzleStorage implements IStorage {
+  private db;
 
   constructor() {
-    this.templates = new Map();
-    this.appProjects = new Map();
-    this.contactSubmissions = new Map();
-    this.initializeMockData();
+    const connectionString = process.env.DATABASE_URL!;
+    const sql = neon(connectionString);
+    this.db = drizzle(sql);
   }
 
-  private initializeMockData() {
-    const mockTemplates: InsertTemplate[] = [
-      {
-        title: "E-Commerce Starter Kit",
-        description: "Full-featured online store with payment integration, inventory management, and customer dashboard",
-        category: "E-Commerce",
-        price: 149,
-        image: "/api/placeholder/400/300",
-        technologies: ["React", "Node.js", "Stripe", "MongoDB"],
-        features: ["Payment Integration", "Inventory Management", "Customer Dashboard", "Analytics"]
-      },
-      {
-        title: "SaaS Dashboard Template",
-        description: "Professional admin dashboard with analytics, user management, and subscription handling",
-        category: "SaaS",
-        price: 199,
-        image: "/api/placeholder/400/300",
-        technologies: ["React", "TypeScript", "Tailwind CSS", "PostgreSQL"],
-        features: ["User Authentication", "Analytics Dashboard", "Subscription Management", "API Integration"]
-      },
-      {
-        title: "Social Media Platform",
-        description: "Complete social networking solution with real-time chat, posts, and notifications",
-        category: "Social",
-        price: 249,
-        image: "/api/placeholder/400/300",
-        technologies: ["React", "Node.js", "Socket.io", "Redis"],
-        features: ["Real-time Chat", "User Profiles", "Post Management", "Notifications"]
-      },
-      {
-        title: "Project Management Tool",
-        description: "Collaborative workspace with task tracking, team management, and reporting",
-        category: "Productivity",
-        price: 179,
-        image: "/api/placeholder/400/300",
-        technologies: ["React", "Node.js", "MongoDB", "Redux"],
-        features: ["Task Tracking", "Team Collaboration", "File Sharing", "Reports & Analytics"]
-      },
-      {
-        title: "Learning Management System",
-        description: "Educational platform with course management, student tracking, and assessment tools",
-        category: "Education",
-        price: 299,
-        image: "/api/placeholder/400/300",
-        technologies: ["React", "Node.js", "PostgreSQL", "AWS S3"],
-        features: ["Course Management", "Student Progress Tracking", "Assessments", "Video Integration"]
-      },
-      {
-        title: "Restaurant Ordering System",
-        description: "Online food ordering with menu management, order tracking, and delivery integration",
-        category: "Food & Beverage",
-        price: 169,
-        image: "/api/placeholder/400/300",
-        technologies: ["React", "Node.js", "Stripe", "Google Maps API"],
-        features: ["Menu Management", "Order Tracking", "Payment Processing", "Delivery Integration"]
-      }
-    ];
+  // User methods
+  async createUser(data: InsertUser & { password: string }): Promise<SafeUser> {
+    const passwordHash = await bcrypt.hash(data.password, 10);
+    const [user] = await this.db
+      .insert(users)
+      .values({
+        email: data.email,
+        username: data.username,
+        passwordHash,
+      })
+      .returning();
 
-    mockTemplates.forEach(template => {
-      const id = randomUUID();
-      this.templates.set(id, { ...template, id });
-    });
+    const { passwordHash: _, otpSecret: __, ...safeUser } = user;
+    return safeUser;
   }
 
+  async getUserById(id: string): Promise<SafeUser | undefined> {
+    const [user] = await this.db.select().from(users).where(eq(users.id, id));
+    if (!user) return undefined;
+    const { passwordHash, otpSecret, ...safeUser } = user;
+    return safeUser;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await this.db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await this.db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async updateUserOtp(userId: string, otpSecret: string | null, otpExpiry: Date | null): Promise<void> {
+    await this.db
+      .update(users)
+      .set({ otpSecret, otpExpiry })
+      .where(eq(users.id, userId));
+  }
+
+  async verifyUserEmail(userId: string): Promise<void> {
+    await this.db
+      .update(users)
+      .set({ emailVerified: true, otpSecret: null, otpExpiry: null })
+      .where(eq(users.id, userId));
+  }
+
+  async validateUserPassword(email: string, password: string): Promise<SafeUser | null> {
+    const user = await this.getUserByEmail(email);
+    if (!user) return null;
+
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isValid) return null;
+
+    const { passwordHash, otpSecret, ...safeUser } = user;
+    return safeUser;
+  }
+
+  // Template methods
   async getTemplates(): Promise<Template[]> {
-    return Array.from(this.templates.values());
+    return await this.db.select().from(templates).orderBy(desc(templates.createdAt));
   }
 
   async getTemplate(id: string): Promise<Template | undefined> {
-    return this.templates.get(id);
-  }
-
-  async createTemplate(insertTemplate: InsertTemplate): Promise<Template> {
-    const id = randomUUID();
-    const template: Template = { ...insertTemplate, id };
-    this.templates.set(id, template);
+    const [template] = await this.db.select().from(templates).where(eq(templates.id, id));
     return template;
   }
 
+  async createTemplate(insertTemplate: InsertTemplate): Promise<Template> {
+    const [template] = await this.db.insert(templates).values(insertTemplate).returning();
+    return template;
+  }
+
+  async seedTemplatesIfEmpty(): Promise<void> {
+    const existingTemplates = await this.getTemplates();
+    if (existingTemplates.length > 0) return;
+
+    const seedTemplates: InsertTemplate[] = [
+      {
+        title: "E-Commerce Platform Starter",
+        description: "Full-featured online store with payment integration, inventory management, and customer dashboard. Built with React, Node.js, and Stripe.",
+        category: "E-Commerce",
+        price: 399,
+        image: "@assets/generated_images/E-commerce_app_template_preview_928913a6.png",
+        downloadUrl: "https://download.example.com/ecommerce-starter.zip",
+        technologies: ["React", "Node.js", "Stripe", "PostgreSQL", "Redis"],
+        features: ["Payment Integration", "Inventory Management", "Customer Dashboard", "Analytics", "Email Notifications"],
+      },
+      {
+        title: "SaaS Dashboard Pro",
+        description: "Professional admin dashboard with analytics, user management, subscription handling, and multi-tenancy support.",
+        category: "SaaS",
+        price: 299,
+        image: "@assets/generated_images/React_dashboard_template_preview_8047865f.png",
+        downloadUrl: "https://download.example.com/saas-dashboard.zip",
+        technologies: ["React", "TypeScript", "Tailwind CSS", "PostgreSQL", "Docker"],
+        features: ["User Authentication", "Analytics Dashboard", "Subscription Management", "API Integration", "Multi-tenancy"],
+      },
+      {
+        title: "Mobile App Template",
+        description: "Cross-platform mobile application template with authentication, push notifications, and offline support.",
+        category: "Mobile",
+        price: 249,
+        image: "@assets/generated_images/Component_library_template_preview_905a7d29.png",
+        downloadUrl: "https://download.example.com/mobile-template.zip",
+        technologies: ["React Native", "TypeScript", "Firebase", "Redux", "Expo"],
+        features: ["Cross-platform", "Push Notifications", "Offline Support", "Authentication", "Social Login"],
+      },
+      {
+        title: "API Boilerplate",
+        description: "Production-ready REST API with authentication, rate limiting, logging, and comprehensive documentation.",
+        category: "Backend",
+        price: 149,
+        image: "@assets/generated_images/Node_API_template_preview_7f2604df.png",
+        downloadUrl: "https://download.example.com/api-boilerplate.zip",
+        technologies: ["Node.js", "Express", "MongoDB", "Redis", "Docker"],
+        features: ["JWT Authentication", "Rate Limiting", "API Documentation", "Testing Suite", "Docker Support"],
+      },
+      {
+        title: "Admin Panel Template",
+        description: "Feature-rich admin panel with user management, content management, and reporting tools.",
+        category: "Dashboard",
+        price: 199,
+        image: "@assets/generated_images/React_dashboard_template_preview_8047865f.png",
+        downloadUrl: "https://download.example.com/admin-panel.zip",
+        technologies: ["React", "Material-UI", "Node.js", "PostgreSQL", "Chart.js"],
+        features: ["User Management", "Content Management", "Reports & Analytics", "Role-based Access", "File Upload"],
+      },
+      {
+        title: "Code Snippets Collection",
+        description: "Curated collection of reusable code snippets for common development tasks and patterns.",
+        category: "Snippets",
+        price: 99,
+        image: "@assets/generated_images/Code_snippets_template_preview_642e6c51.png",
+        downloadUrl: "https://download.example.com/code-snippets.zip",
+        technologies: ["JavaScript", "TypeScript", "Python", "React", "Node.js"],
+        features: ["100+ Snippets", "Well Documented", "Best Practices", "Regular Updates", "VS Code Integration"],
+      },
+    ];
+
+    for (const template of seedTemplates) {
+      await this.createTemplate(template);
+    }
+  }
+
+  // Payment methods
+  async createPayment(payment: InsertPayment): Promise<Payment> {
+    const [newPayment] = await this.db.insert(payments).values(payment).returning();
+    return newPayment;
+  }
+
+  async getPaymentByIntentId(intentId: string): Promise<Payment | undefined> {
+    const [payment] = await this.db
+      .select()
+      .from(payments)
+      .where(eq(payments.stripePaymentIntentId, intentId));
+    return payment;
+  }
+
+  async updatePaymentStatus(id: string, status: string): Promise<Payment | undefined> {
+    const [updated] = await this.db
+      .update(payments)
+      .set({ status })
+      .where(eq(payments.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getUserPayments(userId: string): Promise<Payment[]> {
+    return await this.db
+      .select()
+      .from(payments)
+      .where(eq(payments.userId, userId))
+      .orderBy(desc(payments.createdAt));
+  }
+
+  // User purchase methods
+  async createUserPurchase(purchase: InsertUserPurchase): Promise<UserPurchase> {
+    const [userPurchase] = await this.db.insert(userPurchases).values(purchase).returning();
+    return userPurchase;
+  }
+
+  async getUserPurchases(userId: string): Promise<UserPurchase[]> {
+    return await this.db
+      .select()
+      .from(userPurchases)
+      .where(eq(userPurchases.userId, userId))
+      .orderBy(desc(userPurchases.purchasedAt));
+  }
+
+  async hasUserPurchasedTemplate(userId: string, templateId: string): Promise<boolean> {
+    const [purchase] = await this.db
+      .select()
+      .from(userPurchases)
+      .where(and(eq(userPurchases.userId, userId), eq(userPurchases.templateId, templateId)));
+    return !!purchase;
+  }
+
+  async incrementDownloadCount(userId: string, templateId: string): Promise<void> {
+    const [purchase] = await this.db
+      .select()
+      .from(userPurchases)
+      .where(and(eq(userPurchases.userId, userId), eq(userPurchases.templateId, templateId)));
+
+    if (purchase) {
+      await this.db
+        .update(userPurchases)
+        .set({ downloadCount: purchase.downloadCount + 1 })
+        .where(eq(userPurchases.id, purchase.id));
+    }
+  }
+
+  // Existing methods for app projects and contact submissions
   async getAppProjects(): Promise<AppProject[]> {
-    return Array.from(this.appProjects.values());
+    return await this.db.select().from(appProjects).orderBy(desc(appProjects.createdAt));
   }
 
   async getAppProject(id: string): Promise<AppProject | undefined> {
-    return this.appProjects.get(id);
+    const [project] = await this.db.select().from(appProjects).where(eq(appProjects.id, id));
+    return project;
   }
 
   async createAppProject(insertProject: InsertAppProject): Promise<AppProject> {
-    const id = randomUUID();
-    const project: AppProject = { 
-      ...insertProject, 
-      id,
-      aiPlan: null,
-      createdAt: new Date()
-    };
-    this.appProjects.set(id, project);
+    const [project] = await this.db.insert(appProjects).values(insertProject).returning();
     return project;
   }
 
   async updateAppProject(id: string, updates: Partial<AppProject>): Promise<AppProject | undefined> {
-    const project = this.appProjects.get(id);
-    if (!project) return undefined;
-    
-    const updatedProject = { ...project, ...updates };
-    this.appProjects.set(id, updatedProject);
-    return updatedProject;
+    const [updated] = await this.db
+      .update(appProjects)
+      .set(updates)
+      .where(eq(appProjects.id, id))
+      .returning();
+    return updated;
   }
 
   async getContactSubmissions(): Promise<ContactSubmission[]> {
-    return Array.from(this.contactSubmissions.values());
+    return await this.db.select().from(contactSubmissions).orderBy(desc(contactSubmissions.createdAt));
   }
 
   async createContactSubmission(insertSubmission: InsertContactSubmission): Promise<ContactSubmission> {
-    const id = randomUUID();
-    const submission: ContactSubmission = { 
-      ...insertSubmission, 
-      id,
-      createdAt: new Date()
-    };
-    this.contactSubmissions.set(id, submission);
+    const [submission] = await this.db.insert(contactSubmissions).values(insertSubmission).returning();
     return submission;
   }
 }
 
-export const storage = new MemStorage();
+// Export instance
+export const storage = new DrizzleStorage();

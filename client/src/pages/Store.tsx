@@ -1,19 +1,35 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import Navigation from '@/components/Navigation';
 import TemplateCard from '@/components/TemplateCard';
+import CheckoutModal from '@/components/CheckoutModal';
 import Footer from '@/components/Footer';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Search, Loader2, ShoppingCart, Download, Lock } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import type { Template } from '@shared/schema';
 
 export default function Store() {
+  const [, navigate] = useLocation();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
-  const { data: templates = [], isLoading } = useQuery<Template[]>({
+  const { data: templates = [], isLoading: templatesLoading } = useQuery<Template[]>({
     queryKey: ['/api/templates'],
+  });
+
+  const { data: purchases = [], isLoading: purchasesLoading } = useQuery<any[]>({
+    queryKey: ['/api/user/purchases'],
+    enabled: !!user,
   });
 
   const categories = useMemo(() => {
@@ -29,6 +45,76 @@ export default function Store() {
       return matchesCategory && matchesSearch;
     });
   }, [templates, selectedCategory, searchQuery]);
+
+  const purchasedTemplateIds = useMemo(() => {
+    return new Set(purchases.map(p => p.templateId));
+  }, [purchases]);
+
+  const handlePurchase = (template: Template) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please login to purchase templates",
+        variant: "default",
+      });
+      navigate("/login");
+      return;
+    }
+
+    if (!user.emailVerified) {
+      toast({
+        title: "Email Verification Required",
+        description: "Please verify your email before making purchases",
+        variant: "default",
+      });
+      navigate("/verify-email");
+      return;
+    }
+
+    setSelectedTemplate(template);
+    setIsCheckoutOpen(true);
+  };
+
+  const handleDownload = async (template: Template) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please login to download templates",
+        variant: "default",
+      });
+      navigate("/login");
+      return;
+    }
+
+    try {
+      const response = await apiRequest("GET", `/api/downloads/${template.id}`);
+      const data = await response.json();
+      
+      if (data.downloadUrl) {
+        window.open(data.downloadUrl, "_blank");
+        toast({
+          title: "Download Started",
+          description: `Downloading ${template.title}...`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "An error occurred while downloading the template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePurchaseSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['/api/user/purchases'] });
+    toast({
+      title: "Purchase Successful!",
+      description: "You can now download your template from your account page.",
+    });
+  };
+
+  const isLoading = templatesLoading || purchasesLoading;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -87,23 +173,85 @@ export default function Store() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredTemplates.map((template) => (
-                  <TemplateCard
-                    key={template.id}
-                    title={template.title}
-                    description={template.description}
-                    previewImage={template.image}
-                    techStack={template.technologies}
-                    price={template.price}
-                    onView={() => console.log(`View ${template.title}`)}
-                    onDownload={() => console.log(`Download ${template.title}`)}
-                  />
-                ))}
+                {filteredTemplates.map((template) => {
+                  const isPurchased = purchasedTemplateIds.has(template.id);
+                  
+                  return (
+                    <div key={template.id} className="relative">
+                      {isPurchased && (
+                        <div className="absolute -top-2 -right-2 z-10">
+                          <Badge variant="default" className="bg-green-600">
+                            Purchased
+                          </Badge>
+                        </div>
+                      )}
+                      <TemplateCard
+                        title={template.title}
+                        description={template.description}
+                        previewImage={template.image}
+                        techStack={template.technologies}
+                        price={template.price}
+                        onView={() => {
+                          // Could navigate to a template details page
+                          console.log(`View ${template.title}`);
+                        }}
+                        onDownload={() => {
+                          if (isPurchased) {
+                            handleDownload(template);
+                          } else {
+                            handlePurchase(template);
+                          }
+                        }}
+                        customAction={
+                          isPurchased ? (
+                            <Button 
+                              className="w-full"
+                              onClick={() => handleDownload(template)}
+                              data-testid={`button-download-${template.id}`}
+                            >
+                              <Download className="mr-2 h-4 w-4" />
+                              Download
+                            </Button>
+                          ) : (
+                            <Button 
+                              className="w-full"
+                              onClick={() => handlePurchase(template)}
+                              data-testid={`button-purchase-${template.id}`}
+                            >
+                              {user ? (
+                                <>
+                                  <ShoppingCart className="mr-2 h-4 w-4" />
+                                  Purchase - ${template.price}
+                                </>
+                              ) : (
+                                <>
+                                  <Lock className="mr-2 h-4 w-4" />
+                                  Login to Purchase
+                                </>
+                              )}
+                            </Button>
+                          )
+                        }
+                      />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </section>
       </main>
+      
+      <CheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => {
+          setIsCheckoutOpen(false);
+          setSelectedTemplate(null);
+        }}
+        template={selectedTemplate}
+        onSuccess={handlePurchaseSuccess}
+      />
+      
       <Footer />
     </div>
   );
