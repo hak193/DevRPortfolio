@@ -3,8 +3,11 @@ import HeroSection from '@/components/HeroSection';
 import ServiceCard from '@/components/ServiceCard';
 import Footer from '@/components/Footer';
 import { Code2, Zap, Package } from 'lucide-react';
+import { useLocation } from 'wouter';
 
 export default function Home() {
+  const [, setLocation] = useLocation();
+  
   const services = [
     {
       icon: Code2,
@@ -66,7 +69,15 @@ export default function Home() {
                 <ServiceCard
                   key={index}
                   {...service}
-                  onCtaClick={() => console.log(`${service.title} CTA clicked`)}
+                  onCtaClick={() => {
+                    if (service.title === "Template Store") {
+                      setLocation('/store');
+                    } else if (service.title === "AI App Builder") {
+                      setLocation('/app-builder');
+                    } else if (service.title === "Custom Development") {
+                      setLocation('/contact');
+                    }
+                  }}
                 />
               ))}
             </div>
