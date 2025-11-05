@@ -1,0 +1,118 @@
+Design Guidelines for I-DevR Code Portfolio Website
+Design Approach
+Reference-Based Approach: Drawing inspiration from modern tech service providers and productivity tools:
+
+Linear: Clean typography hierarchy, subtle animations, professional darkness
+Stripe: Restrained use of color, emphasis on clarity and trust
+Vercel: Modern tech aesthetic, strong contrast, purposeful whitespace
+Core Principles:
+
+Professional credibility through clean, confident design
+Accessibility and clarity above visual tricks
+Trust-building through consistent, polished execution
+Worcester, MA local identity with subtle geographic pride
+Typography
+Font System:
+
+Primary Font: Inter (Google Fonts) - all UI, body text, navigation
+Display Font: Inter (bold weights 700-800) - headings, hero text
+Hierarchy:
+
+Hero Headlines: 4xl (mobile) / 6xl (desktop), font-weight-800, line-height tight (1.1)
+Section Headings: 3xl (mobile) / 4xl (desktop), font-weight-700, line-height tight (1.2)
+Subsection Headings: xl / 2xl, font-weight-700
+Body Text: base / lg, font-weight-400, line-height relaxed (1.6)
+UI Labels: sm / base, font-weight-500, line-height normal
+Small Print: sm / xs, font-weight-400
+Layout System
+Spacing Primitives: Use Tailwind units of 4, 6, 8, 12, 16, 20, 24 for consistent rhythm
+
+Component padding: p-6, p-8
+Section spacing: py-16 (mobile), py-20 or py-24 (desktop)
+Card gaps: gap-6, gap-8
+Element margins: mb-4, mb-6, mb-8
+Container Strategy:
+
+Max width: max-w-7xl for full sections, max-w-4xl for forms/focused content
+Horizontal padding: px-6 consistently
+Grid columns: 1 (mobile) → 2 (tablet) → 3 (desktop) for feature cards
+Vertical Rhythm:
+
+Hero sections: 20-32 units vertical padding (py-20 md:py-32)
+Content sections: 16-24 units (py-16 md:py-24)
+Section transitions: Natural flow, no forced viewport heights
+Component Library
+Navigation
+Sticky header with backdrop blur effect
+Logo left, navigation links center-right, CTA button far right
+Mobile: Hamburger menu with smooth slide-down
+Active states: indigo-400 text color
+Height: h-16 or h-20
+Hero Section (Homepage)
+Large hero image: Full-width background featuring Worcester, MA tech/skyline imagery (50% opacity overlay)
+Centered content over image with blurred-background buttons
+Headline + subtitle + 3 CTA buttons in flex row (stack on mobile)
+Buttons with backdrop-blur-md and bg-opacity-90
+Service Cards
+3-column grid on desktop, stack on mobile
+Card structure: Icon (6x6) → Title → Description → Details box (bg-gray-800 inset) → CTA button
+Hover effect: -translate-y-2 transform
+Rounded corners: rounded-xl
+Shadow: shadow-2xl
+Forms (Contact, App Builder)
+Two-column layout on desktop: Info/context left, form right
+Input fields: bg-gray-800, border-gray-700, rounded-lg, focus ring indigo-500
+Labels: text-gray-300, mb-2
+Textarea minimum: 4-6 rows
+Submit button: Full width on mobile, right-aligned on desktop
+AI Helper buttons: Full width, icon + title + subtitle layout
+AI Modal Overlay
+Fixed overlay with bg-black bg-opacity-75
+Modal: max-w-2xl, bg-gray-900, rounded-xl, p-8
+Close button: top-right, text-gray-400 hover:text-white
+Generated content: prose prose-invert styling for markdown rendering
+Payment Tiers (Future)
+3-column cards: Basic, Pro, Enterprise
+Highlighted "Popular" tier with border-2 border-indigo-500
+Price display: Large text-4xl, billing period text-sm text-gray-400
+Feature list: checkmark icons, text-gray-300
+CTA buttons: bg-indigo-600 (standard), bg-indigo-500 (highlighted tier)
+Footer
+Two rows: Top row (newsletter signup, quick links, social icons), Bottom row (copyright, location)
+Grid layout: 3 columns on desktop
+Subtle divider: border-t border-gray-800
+Background: bg-gray-900
+Images
+Hero Section (Homepage):
+
+Large hero background image featuring Worcester, MA landmarks or tech workspace
+Image treatment: Dark overlay (bg-black bg-opacity-50) for text readability
+Aspect ratio: 16:9 or taller on desktop
+Source: Professional stock photo or custom photography
+Services Page:
+
+Optional: Small icon illustrations or abstract tech imagery in service cards
+Keep visual focus on icons and text, not photography
+About Page:
+
+Optional: Team photo or Worcester cityscape as supporting visual
+Placement: Side-by-side with mission/values content
+Contact Page:
+
+No hero image, focus on form functionality
+Optional: Small decorative element or map integration
+Animation Strategy
+Minimal, Purposeful Motion:
+
+Hover states: Scale transforms (scale-105) on buttons only
+Card hovers: Subtle vertical translation (-translate-y-2)
+Modal entry: Fade-in effect (can be CSS transition)
+No scroll-triggered animations, parallax, or loading spinners beyond API calls
+Loading states: Simple spinner icon with "Generating..." text
+Accessibility & Interaction
+Focus states: 2px ring-indigo-500 on all interactive elements
+Button contrast: WCAG AA minimum, white text on indigo-600+
+Form validation: Inline error messages in red-400 with red-900 background
+Consistent focus order: Header → main content → footer
+Touch targets: Minimum 44x44px on mobile
+This design system creates a professional, trustworthy, and modern tech services portfolio that balances Worcester's local identity with global technical credibility.
