@@ -35,10 +35,17 @@ export interface IStorage {
   verifyUserEmail(userId: string): Promise<void>;
   validateUserPassword(email: string, password: string): Promise<SafeUser | null>;
 
+  // Admin user methods
+  getAllUsers(): Promise<SafeUser[]>;
+  updateUserAdminStatus(userId: string, isAdmin: boolean): Promise<SafeUser | undefined>;
+  getUsersCount(): Promise<number>;
+
   // Template methods
   getTemplates(): Promise<Template[]>;
   getTemplate(id: string): Promise<Template | undefined>;
   createTemplate(template: InsertTemplate): Promise<Template>;
+  updateTemplate(id: string, updates: Partial<InsertTemplate>): Promise<Template | undefined>;
+  deleteTemplate(id: string): Promise<boolean>;
   seedTemplatesIfEmpty(): Promise<void>;
 
   // Payment methods
@@ -46,6 +53,8 @@ export interface IStorage {
   getPaymentByIntentId(intentId: string): Promise<Payment | undefined>;
   updatePaymentStatus(id: string, status: string): Promise<Payment | undefined>;
   getUserPayments(userId: string): Promise<Payment[]>;
+  getAllPayments(): Promise<Payment[]>;
+  getTotalRevenue(): Promise<number>;
 
   // User purchase methods
   createUserPurchase(purchase: InsertUserPurchase): Promise<UserPurchase>;
@@ -129,6 +138,29 @@ export class DrizzleStorage implements IStorage {
     return safeUser;
   }
 
+  // Admin user methods
+  async getAllUsers(): Promise<SafeUser[]> {
+    const allUsers = await this.db.select().from(users).orderBy(desc(users.createdAt));
+    return allUsers.map(({ passwordHash, otpSecret, ...safeUser }) => safeUser);
+  }
+
+  async updateUserAdminStatus(userId: string, isAdmin: boolean): Promise<SafeUser | undefined> {
+    const [updated] = await this.db
+      .update(users)
+      .set({ isAdmin })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    if (!updated) return undefined;
+    const { passwordHash, otpSecret, ...safeUser } = updated;
+    return safeUser;
+  }
+
+  async getUsersCount(): Promise<number> {
+    const result = await this.db.select().from(users);
+    return result.length;
+  }
+
   // Template methods
   async getTemplates(): Promise<Template[]> {
     return await this.db.select().from(templates).orderBy(desc(templates.createdAt));
@@ -142,6 +174,20 @@ export class DrizzleStorage implements IStorage {
   async createTemplate(insertTemplate: InsertTemplate): Promise<Template> {
     const [template] = await this.db.insert(templates).values(insertTemplate).returning();
     return template;
+  }
+
+  async updateTemplate(id: string, updates: Partial<InsertTemplate>): Promise<Template | undefined> {
+    const [updated] = await this.db
+      .update(templates)
+      .set(updates)
+      .where(eq(templates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTemplate(id: string): Promise<boolean> {
+    const result = await this.db.delete(templates).where(eq(templates.id, id)).returning();
+    return result.length > 0;
   }
 
   async seedTemplatesIfEmpty(): Promise<void> {
@@ -245,6 +291,18 @@ export class DrizzleStorage implements IStorage {
       .from(payments)
       .where(eq(payments.userId, userId))
       .orderBy(desc(payments.createdAt));
+  }
+
+  async getAllPayments(): Promise<Payment[]> {
+    return await this.db.select().from(payments).orderBy(desc(payments.createdAt));
+  }
+
+  async getTotalRevenue(): Promise<number> {
+    const successfulPayments = await this.db
+      .select()
+      .from(payments)
+      .where(eq(payments.status, "succeeded"));
+    return successfulPayments.reduce((total, payment) => total + payment.amount, 0);
   }
 
   // User purchase methods

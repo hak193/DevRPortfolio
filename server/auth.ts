@@ -70,6 +70,20 @@ export async function ensureEmailVerified(req: any, res: any, next: any) {
   return next();
 }
 
+// Middleware to check if user is an admin
+export function ensureAdmin(req: any, res: any, next: any) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  
+  const user = req.user as SafeUser;
+  if (!user.isAdmin) {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  
+  return next();
+}
+
 // Generate OTP
 export function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();

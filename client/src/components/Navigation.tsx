@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Menu, X, User, LogOut } from 'lucide-react';
+import { Menu, X, User, LogOut, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import {
@@ -58,6 +58,19 @@ export default function Navigation() {
                 {link.label}
               </Link>
             ))}
+            {user?.isAdmin && (
+              <Link 
+                href="/admin"
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors hover-elevate ${
+                  location.startsWith('/admin')
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
+                }`}
+                data-testid="link-admin-panel"
+              >
+                Admin Panel
+              </Link>
+            )}
           </div>
 
           <div className="hidden md:flex items-center gap-3">
@@ -72,6 +85,14 @@ export default function Navigation() {
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  {user.isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin" data-testid="link-admin-dropdown">
+                        <Shield className="mr-2 h-4 w-4" />
+                        Admin Panel
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem asChild>
                     <Link href="/account" data-testid="link-account">
                       <User className="mr-2 h-4 w-4" />
@@ -131,6 +152,20 @@ export default function Navigation() {
                 {link.label}
               </Link>
             ))}
+            {user?.isAdmin && (
+              <Link 
+                href="/admin"
+                onClick={() => setIsMenuOpen(false)}
+                className={`block px-4 py-3 text-base font-medium rounded-md hover-elevate ${
+                  location.startsWith('/admin')
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
+                }`}
+                data-testid="mobile-link-admin-panel"
+              >
+                Admin Panel
+              </Link>
+            )}
             <div className="pt-2 space-y-2">
               {user ? (
                 <>

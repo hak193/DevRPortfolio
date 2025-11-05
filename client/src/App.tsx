@@ -14,6 +14,10 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import VerifyEmail from "@/pages/VerifyEmail";
 import Account from "@/pages/Account";
+import AdminDashboard from "@/pages/AdminDashboard";
+import AdminTemplates from "@/pages/AdminTemplates";
+import AdminUsers from "@/pages/AdminUsers";
+import AdminPayments from "@/pages/AdminPayments";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -29,6 +33,10 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/account" component={Account} />
+      <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin/templates" component={AdminTemplates} />
+      <Route path="/admin/users" component={AdminUsers} />
+      <Route path="/admin/payments" component={AdminPayments} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   emailVerified: boolean("email_verified").default(false).notNull(),
+  isAdmin: boolean("is_admin").default(false).notNull(),
   otpSecret: text("otp_secret"),
   otpExpiry: timestamp("otp_expiry"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -20,6 +21,7 @@ export const insertUserSchema = createInsertSchema(users)
     id: true,
     createdAt: true,
     emailVerified: true,
+    isAdmin: true,
     otpSecret: true,
     otpExpiry: true,
   })

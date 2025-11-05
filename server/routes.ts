@@ -14,7 +14,7 @@ import {
   getTargetAudienceSuggestions,
   generateAppPlan 
 } from "./gemini";
-import passport, { ensureAuthenticated, ensureEmailVerified, generateOTP, getOTPExpiry } from "./auth";
+import passport, { ensureAuthenticated, ensureEmailVerified, ensureAdmin, generateOTP, getOTPExpiry } from "./auth";
 import type { SafeUser } from "@shared/schema";
 
 // Initialize Stripe
@@ -22,7 +22,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
 }
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-12-18.acacia",
+  apiVersion: "2025-10-29.clover",
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -443,6 +443,155 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating contact submission:", error);
       res.status(400).json({ error: "Invalid contact data" });
+    }
+  });
+
+  // ========== Admin Routes ==========
+  // Get admin dashboard stats
+  app.get("/api/admin/stats", ensureAdmin, async (_req, res) => {
+    try {
+      const [usersCount, totalRevenue, templates, payments] = await Promise.all([
+        storage.getUsersCount(),
+        storage.getTotalRevenue(),
+        storage.getTemplates(),
+        storage.getAllPayments()
+      ]);
+
+      // Enrich recent payments with user and template data
+      const recentPayments = await Promise.all(
+        payments.slice(0, 10).map(async (payment) => {
+          const [user, template] = await Promise.all([
+            storage.getUserById(payment.userId),
+            storage.getTemplate(payment.templateId)
+          ]);
+          return {
+            ...payment,
+            userEmail: user?.email || 'Unknown',
+            templateTitle: template?.title || 'Unknown'
+          };
+        })
+      );
+
+      const stats = {
+        usersCount,
+        templatesCount: templates.length,
+        totalRevenue: totalRevenue / 100, // Convert cents to dollars
+        recentPayments,
+        successfulPayments: payments.filter(p => p.status === "succeeded").length,
+        pendingPayments: payments.filter(p => p.status === "pending").length
+      };
+
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching admin stats:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  // Get all users
+  app.get("/api/admin/users", ensureAdmin, async (_req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  // Update user admin status
+  app.patch("/api/admin/users/:id/admin", ensureAdmin, async (req, res) => {
+    try {
+      const { isAdmin } = req.body;
+      if (typeof isAdmin !== "boolean") {
+        return res.status(400).json({ error: "isAdmin must be a boolean" });
+      }
+
+      const updatedUser = await storage.updateUserAdminStatus(req.params.id, isAdmin);
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating user admin status:", error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  // Admin: Create template
+  app.post("/api/admin/templates", ensureAdmin, async (req, res) => {
+    try {
+      const validatedData = insertTemplateSchema.parse(req.body);
+      const template = await storage.createTemplate(validatedData);
+      res.status(201).json(template);
+    } catch (error: any) {
+      console.error("Error creating template:", error);
+      if (error.errors) {
+        return res.status(400).json({ error: error.errors[0]?.message || "Invalid data" });
+      }
+      res.status(400).json({ error: "Failed to create template" });
+    }
+  });
+
+  // Admin: Update template
+  app.patch("/api/admin/templates/:id", ensureAdmin, async (req, res) => {
+    try {
+      const updates = insertTemplateSchema.partial().parse(req.body);
+      const template = await storage.updateTemplate(req.params.id, updates);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      res.json(template);
+    } catch (error: any) {
+      console.error("Error updating template:", error);
+      if (error.errors) {
+        return res.status(400).json({ error: error.errors[0]?.message || "Invalid data" });
+      }
+      res.status(400).json({ error: "Failed to update template" });
+    }
+  });
+
+  // Admin: Delete template
+  app.delete("/api/admin/templates/:id", ensureAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteTemplate(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json({ message: "Template deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting template:", error);
+      res.status(500).json({ error: "Failed to delete template" });
+    }
+  });
+
+  // Admin: Get all payments
+  app.get("/api/admin/payments", ensureAdmin, async (_req, res) => {
+    try {
+      const payments = await storage.getAllPayments();
+      
+      // Enrich payments with user and template data
+      const enrichedPayments = await Promise.all(
+        payments.map(async (payment) => {
+          const [user, template] = await Promise.all([
+            storage.getUserById(payment.userId),
+            storage.getTemplate(payment.templateId)
+          ]);
+          return {
+            ...payment,
+            userEmail: user?.email || 'Unknown',
+            templateTitle: template?.title || 'Unknown'
+          };
+        })
+      );
+      
+      res.json(enrichedPayments);
+    } catch (error) {
+      console.error("Error fetching payments:", error);
+      res.status(500).json({ error: "Failed to fetch payments" });
     }
   });
 
