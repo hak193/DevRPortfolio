@@ -4,7 +4,9 @@
 
 I-DevR Code is a professional portfolio website for a Worcester, MA-based software development company, featuring:
 - AI-powered automated app builder with smart prompting using Google Gemini API
-- Comprehensive software/snippet/template marketplace
+- Comprehensive software/snippet/template marketplace with Stripe payment integration
+- Comprehensive admin panel for managing templates, users, and payments
+- Secure user authentication with OTP email verification
 - Modern dark theme with Inter typography and indigo accents
 - Full-stack JavaScript application with React frontend and Express backend
 
@@ -23,8 +25,10 @@ I-DevR Code is a professional portfolio website for a Worcester, MA-based softwa
 **Backend:**
 - Node.js with Express
 - TypeScript
+- PostgreSQL database with Drizzle ORM
 - Google Gemini AI API integration
-- In-memory storage (MemStorage)
+- Stripe payment processing
+- Passport.js authentication with sessions
 - Zod for validation
 
 **Development Tools:**
@@ -117,6 +121,50 @@ Professional contact form with backend integration:
 
 **API Endpoints:**
 - `POST /api/contact` - Submit contact form
+
+### 4. Admin Panel
+
+Comprehensive admin dashboard for managing all aspects of the platform:
+
+- **Dashboard Overview**: 
+  - Total users, templates, and revenue statistics
+  - Recent payment activity
+  - Quick insights into successful and pending payments
+  
+- **Template Management**:
+  - Full CRUD operations (Create, Read, Update, Delete)
+  - Edit template details, pricing, features, and technologies
+  - Upload/update template images and download URLs
+  
+- **User Management**:
+  - View all registered users
+  - Promote/demote admin privileges
+  - View user verification and account status
+  
+- **Payment History**:
+  - Complete payment transaction log
+  - Filter by payment status (succeeded, pending, failed)
+  - View user and template details for each payment
+
+**Admin API Endpoints:**
+- `GET /api/admin/stats` - Dashboard statistics
+- `GET /api/admin/users` - List all users
+- `PATCH /api/admin/users/:id/admin` - Update admin status
+- `POST /api/admin/templates` - Create template
+- `PATCH /api/admin/templates/:id` - Update template
+- `DELETE /api/admin/templates/:id` - Delete template
+- `GET /api/admin/payments` - View all payments
+
+**Admin Pages:**
+- `/admin` - Dashboard with statistics
+- `/admin/templates` - Template management
+- `/admin/users` - User management
+- `/admin/payments` - Payment history
+
+**Security:**
+- All admin routes protected with `ensureAdmin` middleware
+- Frontend route protection redirects non-admins
+- Admin status stored in database with default `false`
 
 ## Data Models
 
