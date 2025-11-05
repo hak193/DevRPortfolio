@@ -1,21 +1,51 @@
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Mail, MapPin, Phone } from 'lucide-react';
+import { Mail, MapPin, Phone, CheckCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 
 export default function ContactForm() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    phone: '',
+    subject: '',
     message: ''
+  });
+  const [submitted, setSubmitted] = useState(false);
+  const { toast } = useToast();
+
+  const contactMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return await apiRequest('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    },
+    onSuccess: () => {
+      setSubmitted(true);
+      setFormData({ name: '', email: '', subject: '', message: '' });
+      toast({
+        title: "Message sent!",
+        description: "We'll get back to you as soon as possible.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive"
+      });
+    }
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Contact form submitted:', formData);
+    contactMutation.mutate(formData);
   };
 
   return (
@@ -61,6 +91,13 @@ export default function ContactForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {submitted && (
+          <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+            <CheckCircle className="h-5 w-5 text-green-500" />
+            <p className="text-sm text-green-500">Message sent successfully!</p>
+          </div>
+        )}
+        
         <div>
           <Label htmlFor="name" className="mb-2">Name</Label>
           <Input
@@ -68,6 +105,7 @@ export default function ContactForm() {
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="Your name"
+            required
             className="bg-muted border-border rounded-lg focus:ring-2 focus:ring-primary"
             data-testid="input-contact-name"
           />
@@ -81,20 +119,22 @@ export default function ContactForm() {
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             placeholder="your.email@example.com"
+            required
             className="bg-muted border-border rounded-lg focus:ring-2 focus:ring-primary"
             data-testid="input-contact-email"
           />
         </div>
 
         <div>
-          <Label htmlFor="phone" className="mb-2">Phone (Optional)</Label>
+          <Label htmlFor="subject" className="mb-2">Subject</Label>
           <Input
-            id="phone"
-            value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            placeholder="(508) 555-0123"
+            id="subject"
+            value={formData.subject}
+            onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+            placeholder="What's this about?"
+            required
             className="bg-muted border-border rounded-lg focus:ring-2 focus:ring-primary"
-            data-testid="input-contact-phone"
+            data-testid="input-contact-subject"
           />
         </div>
 
@@ -106,13 +146,19 @@ export default function ContactForm() {
             onChange={(e) => setFormData({ ...formData, message: e.target.value })}
             placeholder="Tell us about your project..."
             rows={6}
+            required
             className="bg-muted border-border rounded-lg focus:ring-2 focus:ring-primary"
             data-testid="textarea-contact-message"
           />
         </div>
 
-        <Button type="submit" className="w-full lg:w-auto" data-testid="button-contact-submit">
-          Send Message
+        <Button 
+          type="submit" 
+          className="w-full lg:w-auto" 
+          disabled={contactMutation.isPending}
+          data-testid="button-contact-submit"
+        >
+          {contactMutation.isPending ? 'Sending...' : 'Send Message'}
         </Button>
       </form>
     </div>
