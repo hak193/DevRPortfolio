@@ -20,25 +20,27 @@ export default function Navigation() {
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
       <nav className="max-w-7xl mx-auto px-6 h-20">
         <div className="flex items-center justify-between h-full">
-          <Link href="/">
-            <a className="text-xl md:text-2xl font-extrabold text-foreground hover-elevate rounded-md px-2 -ml-2" data-testid="link-home">
-              <span className="text-primary">I-DevR</span> Code
-            </a>
+          <Link 
+            href="/" 
+            className="text-xl md:text-2xl font-extrabold text-foreground hover-elevate rounded-md px-2 -ml-2" 
+            data-testid="link-home"
+          >
+            <span className="text-primary">I-DevR</span> Code
           </Link>
 
           <div className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => (
-              <Link key={link.href} href={link.href}>
-                <a
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors hover-elevate ${
-                    location === link.href
-                      ? 'text-primary'
-                      : 'text-muted-foreground'
-                  }`}
-                  data-testid={`link-${link.label.toLowerCase().replace(' ', '-')}`}
-                >
-                  {link.label}
-                </a>
+              <Link 
+                key={link.href} 
+                href={link.href}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors hover-elevate ${
+                  location === link.href
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
+                }`}
+                data-testid={`link-${link.label.toLowerCase().replace(' ', '-')}`}
+              >
+                {link.label}
               </Link>
             ))}
           </div>
@@ -62,18 +64,18 @@ export default function Navigation() {
         {isMenuOpen && (
           <div className="md:hidden pb-6 pt-4 space-y-2 animate-in slide-in-from-top-2 duration-200">
             {navLinks.map((link) => (
-              <Link key={link.href} href={link.href}>
-                <a
-                  onClick={() => setIsMenuOpen(false)}
-                  className={`block px-4 py-3 text-base font-medium rounded-md hover-elevate ${
-                    location === link.href
-                      ? 'text-primary'
-                      : 'text-muted-foreground'
-                  }`}
-                  data-testid={`mobile-link-${link.label.toLowerCase().replace(' ', '-')}`}
-                >
-                  {link.label}
-                </a>
+              <Link 
+                key={link.href} 
+                href={link.href}
+                onClick={() => setIsMenuOpen(false)}
+                className={`block px-4 py-3 text-base font-medium rounded-md hover-elevate ${
+                  location === link.href
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
+                }`}
+                data-testid={`mobile-link-${link.label.toLowerCase().replace(' ', '-')}`}
+              >
+                {link.label}
               </Link>
             ))}
             <div className="pt-2">
