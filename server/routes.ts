@@ -632,6 +632,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Update all template images with stock photos
+  app.post("/api/admin/templates/update-images", ensureAdmin, async (_req, res) => {
+    try {
+      const templates = await storage.getTemplates();
+      
+      // Map template titles to new stock images
+      const imageMap: Record<string, string> = {
+        "E-Commerce Platform Starter": "@assets/stock_images/online_shopping_lapt_2ddd5076.jpg",
+        "SaaS Dashboard Pro": "@assets/stock_images/business_dashboard_a_1506366e.jpg",
+        "Mobile App Template": "@assets/stock_images/mobile_app_smartphon_c3e8c339.jpg",
+        "API Boilerplate": "@assets/stock_images/programming_code_on__964f94e3.jpg",
+        "Admin Panel Template": "@assets/stock_images/data_analytics_dashb_bee4d2a0.jpg",
+        "Code Snippets Collection": "@assets/stock_images/code_editor_programm_0fc925fe.jpg",
+      };
+
+      const updatePromises = templates.map(async (template) => {
+        const newImage = imageMap[template.title];
+        if (newImage) {
+          return storage.updateTemplate(template.id, { image: newImage });
+        }
+        return template;
+      });
+
+      await Promise.all(updatePromises);
+
+      res.json({ message: "Template images updated successfully", count: templates.length });
+    } catch (error) {
+      console.error("Error updating template images:", error);
+      res.status(500).json({ error: "Failed to update template images" });
+    }
+  });
+
   // Admin: Get all payments
   app.get("/api/admin/payments", ensureAdmin, async (_req, res) => {
     try {

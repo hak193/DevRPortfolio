@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { insertTemplateSchema, type Template, type InsertTemplate } from "@shared/schema";
 import { z } from "zod";
 
@@ -123,6 +123,27 @@ export default function AdminTemplates() {
     },
   });
 
+  const updateImagesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/admin/templates/update-images");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update images");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      toast({ 
+        title: "Images updated successfully", 
+        description: `Updated ${data.count} template images with stock photos` 
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update images", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleCreate = () => {
     setEditingTemplate(null);
     form.reset({
@@ -213,10 +234,25 @@ export default function AdminTemplates() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-4xl font-bold" data-testid="text-page-title">Manage Templates</h1>
-            <Button onClick={handleCreate} data-testid="button-create-template">
-              <Plus className="mr-2 h-4 w-4" />
-              Create New Template
-            </Button>
+            <div className="flex gap-3">
+              <Button 
+                variant="outline"
+                onClick={() => updateImagesMutation.mutate()}
+                disabled={updateImagesMutation.isPending}
+                data-testid="button-update-images"
+              >
+                {updateImagesMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                Update Stock Photos
+              </Button>
+              <Button onClick={handleCreate} data-testid="button-create-template">
+                <Plus className="mr-2 h-4 w-4" />
+                Create New Template
+              </Button>
+            </div>
           </div>
 
           <Card>
