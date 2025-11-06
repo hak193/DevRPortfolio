@@ -1,4 +1,5 @@
 import { ArrowRight, Code, Zap } from 'lucide-react';
+import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import heroImage from '@assets/generated_images/Worcester_MA_tech_workspace_hero_e0f14d46.png';
 
@@ -28,27 +29,36 @@ export default function HeroSection() {
             size="lg" 
             className="backdrop-blur-md bg-primary bg-opacity-90 hover:bg-opacity-100 min-w-[180px]"
             data-testid="button-view-services"
+            asChild
           >
-            <Code className="mr-2 h-5 w-5" />
-            View Services
+            <Link href="/services">
+              <Code className="mr-2 h-5 w-5" />
+              View Services
+            </Link>
           </Button>
           <Button 
             size="lg" 
             variant="outline"
             className="backdrop-blur-md bg-white bg-opacity-10 hover:bg-opacity-20 border-white border-opacity-30 text-white min-w-[180px]"
             data-testid="button-browse-templates"
+            asChild
           >
-            <ArrowRight className="mr-2 h-5 w-5" />
-            Browse Templates
+            <Link href="/store">
+              <ArrowRight className="mr-2 h-5 w-5" />
+              Browse Templates
+            </Link>
           </Button>
           <Button 
             size="lg" 
             variant="outline"
             className="backdrop-blur-md bg-white bg-opacity-10 hover:bg-opacity-20 border-white border-opacity-30 text-white min-w-[180px]"
             data-testid="button-build-app"
+            asChild
           >
-            <Zap className="mr-2 h-5 w-5" />
-            Build Your App
+            <Link href="/app-builder">
+              <Zap className="mr-2 h-5 w-5" />
+              Build Your App
+            </Link>
           </Button>
         </div>
       </div>
