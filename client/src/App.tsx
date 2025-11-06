@@ -14,6 +14,9 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import VerifyEmail from "@/pages/VerifyEmail";
 import Account from "@/pages/Account";
+import ProjectDashboard from "@/pages/ProjectDashboard";
+import ProjectDetails from "@/pages/ProjectDetails";
+import Collaboration from "@/pages/Collaboration";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminTemplates from "@/pages/AdminTemplates";
 import AdminUsers from "@/pages/AdminUsers";
@@ -33,6 +36,9 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/account" component={Account} />
+      <Route path="/projects" component={ProjectDashboard} />
+      <Route path="/projects/:id" component={ProjectDetails} />
+      <Route path="/collaborate" component={Collaboration} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/admin/templates" component={AdminTemplates} />
       <Route path="/admin/users" component={AdminUsers} />

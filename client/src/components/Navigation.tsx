@@ -58,6 +58,32 @@ export default function Navigation() {
                 {link.label}
               </Link>
             ))}
+            {user && (
+              <>
+                <Link 
+                  href="/collaborate"
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors hover-elevate ${
+                    location === '/collaborate'
+                      ? 'text-primary'
+                      : 'text-muted-foreground'
+                  }`}
+                  data-testid="link-collaborate"
+                >
+                  Collaborate
+                </Link>
+                <Link 
+                  href="/projects"
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors hover-elevate ${
+                    location.startsWith('/projects')
+                      ? 'text-primary'
+                      : 'text-muted-foreground'
+                  }`}
+                  data-testid="link-projects"
+                >
+                  Projects
+                </Link>
+              </>
+            )}
             {user?.isAdmin && (
               <Link 
                 href="/admin"
@@ -152,6 +178,34 @@ export default function Navigation() {
                 {link.label}
               </Link>
             ))}
+            {user && (
+              <>
+                <Link 
+                  href="/collaborate"
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`block px-4 py-3 text-base font-medium rounded-md hover-elevate ${
+                    location === '/collaborate'
+                      ? 'text-primary'
+                      : 'text-muted-foreground'
+                  }`}
+                  data-testid="mobile-link-collaborate"
+                >
+                  Collaborate
+                </Link>
+                <Link 
+                  href="/projects"
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`block px-4 py-3 text-base font-medium rounded-md hover-elevate ${
+                    location.startsWith('/projects')
+                      ? 'text-primary'
+                      : 'text-muted-foreground'
+                  }`}
+                  data-testid="mobile-link-projects"
+                >
+                  Projects
+                </Link>
+              </>
+            )}
             {user?.isAdmin && (
               <Link 
                 href="/admin"

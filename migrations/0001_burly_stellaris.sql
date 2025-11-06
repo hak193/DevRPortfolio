@@ -1,0 +1,2 @@
+ALTER TABLE "app_projects" ADD COLUMN "user_id" varchar;--> statement-breakpoint
+ALTER TABLE "app_projects" ADD CONSTRAINT "app_projects_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;

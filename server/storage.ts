@@ -346,12 +346,28 @@ export class DrizzleStorage implements IStorage {
     return await this.db.select().from(appProjects).orderBy(desc(appProjects.createdAt));
   }
 
+  async getUserAppProjects(userId: string): Promise<AppProject[]> {
+    return await this.db
+      .select()
+      .from(appProjects)
+      .where(eq(appProjects.userId, userId))
+      .orderBy(desc(appProjects.createdAt));
+  }
+
   async getAppProject(id: string): Promise<AppProject | undefined> {
     const [project] = await this.db.select().from(appProjects).where(eq(appProjects.id, id));
     return project;
   }
 
-  async createAppProject(insertProject: InsertAppProject): Promise<AppProject> {
+  async getUserAppProject(userId: string, id: string): Promise<AppProject | undefined> {
+    const [project] = await this.db
+      .select()
+      .from(appProjects)
+      .where(and(eq(appProjects.id, id), eq(appProjects.userId, userId)));
+    return project;
+  }
+
+  async createAppProject(insertProject: InsertAppProject & { userId: string }): Promise<AppProject> {
     const [project] = await this.db.insert(appProjects).values(insertProject).returning();
     return project;
   }

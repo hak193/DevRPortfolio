@@ -104,6 +104,7 @@ export const sessions = pgTable("session", {
 // App Projects table (keeping existing functionality)
 export const appProjects = pgTable("app_projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
   appName: text("app_name").notNull(),
   appType: text("app_type").notNull(),
   description: text("description").notNull(),
@@ -115,6 +116,7 @@ export const appProjects = pgTable("app_projects", {
 
 export const insertAppProjectSchema = createInsertSchema(appProjects).omit({
   id: true,
+  userId: true,
   createdAt: true,
   aiPlan: true,
 });

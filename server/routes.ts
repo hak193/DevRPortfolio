@@ -15,6 +15,7 @@ import {
   generateAppPlan 
 } from "./gemini";
 import passport, { ensureAuthenticated, ensureEmailVerified, ensureAdmin, generateOTP, getOTPExpiry } from "./auth";
+import { sendContactNotification, sendOTPEmail, sendPurchaseConfirmation } from "./email";
 import type { SafeUser } from "@shared/schema";
 
 // Initialize Stripe
@@ -52,8 +53,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const otp = generateOTP();
       await storage.updateUserOtp(user.id, otp, getOTPExpiry());
       
-      // Mock sending email (in production, use an email service)
-      console.log(`[EMAIL] Verification OTP for ${user.email}: ${otp}`);
+      // Send OTP email
+      await sendOTPEmail(user.email, otp);
       
       // Auto-login after registration
       req.login(user, (err) => {
@@ -117,10 +118,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const otp = generateOTP();
       await storage.updateUserOtp(user.id, otp, getOTPExpiry());
       
-      // Mock sending email
-      console.log(`[EMAIL] New verification OTP for ${user.email}: ${otp}`);
+      // Send OTP email
+      await sendOTPEmail(user.email, otp);
       
-      res.json({ message: "OTP sent. Check console for OTP (in production, check email)." });
+      res.json({ message: "OTP sent. Please check your email." });
     } catch (error) {
       console.error("Send OTP error:", error);
       res.status(500).json({ error: "Failed to send OTP" });
@@ -278,6 +279,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 templateId: payment.templateId,
                 paymentId: payment.id,
               });
+              
+              // Send purchase confirmation email
+              const user = await storage.getUserById(payment.userId);
+              const template = await storage.getTemplate(payment.templateId);
+              if (user && template) {
+                await sendPurchaseConfirmation({
+                  email: user.email,
+                  username: user.username,
+                  templateTitle: template.title,
+                  amount: payment.amount,
+                });
+              }
             }
           }
           
@@ -307,6 +320,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             templateId: payment.templateId,
             paymentId: payment.id,
           });
+          
+          // Send purchase confirmation email
+          const user = await storage.getUserById(payment.userId);
+          const template = await storage.getTemplate(payment.templateId);
+          if (user && template) {
+            await sendPurchaseConfirmation({
+              email: user.email,
+              username: user.username,
+              templateTitle: template.title,
+              amount: payment.amount,
+            });
+          }
         }
       }
       
@@ -368,10 +393,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========== Existing Routes (App Projects, Contact, AI) ==========
-  app.post("/api/app-projects", async (req, res) => {
+  app.post("/api/app-projects", ensureAuthenticated, async (req, res) => {
     try {
+      const user = req.user as SafeUser;
       const validatedData = insertAppProjectSchema.parse(req.body);
-      const project = await storage.createAppProject(validatedData);
+      const project = await storage.createAppProject({
+        ...validatedData,
+        userId: user.id,
+      });
       
       const aiPlan = await generateAppPlan({
         appName: validatedData.appName,
@@ -439,10 +468,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertContactSubmissionSchema.parse(req.body);
       const submission = await storage.createContactSubmission(validatedData);
+      
+      // Send email notification
+      await sendContactNotification({
+        name: validatedData.name,
+        email: validatedData.email,
+        subject: validatedData.subject,
+        message: validatedData.message,
+      });
+      
       res.status(201).json(submission);
     } catch (error) {
       console.error("Error creating contact submission:", error);
       res.status(400).json({ error: "Invalid contact data" });
+    }
+  });
+
+  // ========== User Project Routes ==========
+  app.get("/api/user/app-projects", ensureAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as SafeUser;
+      const projects = await storage.getUserAppProjects(user.id);
+      res.json(projects);
+    } catch (error) {
+      console.error("Error fetching user projects:", error);
+      res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
+  app.get("/api/user/app-projects/:id", ensureAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as SafeUser;
+      const project = await storage.getUserAppProject(user.id, req.params.id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      res.json(project);
+    } catch (error) {
+      console.error("Error fetching project:", error);
+      res.status(500).json({ error: "Failed to fetch project" });
     }
   });
 
